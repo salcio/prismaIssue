@@ -1,0 +1,78 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+  binaryTargets   = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                 @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name                  String                 @db.NVarChar(255)
+  email                 String?
+  username              String                 @unique @db.NVarChar(255)
+  organisationId        String?                @db.UniqueIdentifier
+  organisation          Organisation?          @relation(fields: [organisationId], references: [id])
+  groups                UserGroups[]
+}
+
+model Organisation {
+  id         String    @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name       String    @unique @db.NVarChar(255)
+  users      User[]
+}
+
+model Group {
+  id                    String                 @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name                  String                 @unique
+  tcpPrefix             String?
+  applicationId         String?                @db.UniqueIdentifier
+  ownedApplications     ApplicationOwner[]
+  application           Application?           @relation(fields: [applicationId], references: [id])
+  managedGroups         GroupManager[]         @relation("managedGroups")
+  managers              GroupManager[]         @relation("managers")
+  users                 UserGroups[]
+}
+
+model Application {
+  id               String               @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name             String               @unique
+  owners           ApplicationOwner[]
+  groups           Group[]
+}
+
+model UserGroups {
+  userId     String   @db.UniqueIdentifier
+  groupId    String   @db.UniqueIdentifier
+  assignedAt DateTime @default(now())
+  assignedBy String
+  group      Group    @relation(fields: [groupId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@id([groupId, userId])
+}
+
+model ApplicationOwner {
+  applicationId String      @db.UniqueIdentifier
+  groupId       String      @db.UniqueIdentifier
+  assignedAt    DateTime    @default(now())
+  assignedBy    String
+  application   Application @relation(fields: [applicationId], references: [id], onUpdate: NoAction)
+  group         Group       @relation(fields: [groupId], references: [id])
+
+  @@id([groupId, applicationId])
+}
+
+model GroupManager {
+  managerId  String   @db.UniqueIdentifier
+  groupId    String   @db.UniqueIdentifier
+  assignedAt DateTime @default(now())
+  assignedBy String
+  group      Group    @relation("managedGroups", fields: [groupId], references: [id], onUpdate: NoAction)
+  manager    Group    @relation("managers", fields: [managerId], references: [id], onUpdate: NoAction)
+
+  @@id([groupId, managerId])
+}
