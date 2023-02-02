@@ -1,0 +1,58 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+  binaryTargets   = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Organisation {
+  id         String    @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name       String    @unique @db.NVarChar(255)
+  users      User[]
+}
+
+model User {
+  id                    String                 @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name                  String                 @db.NVarChar(255)
+  email                 String?
+  username              String                 @unique @db.NVarChar(255)
+  organisationId        String?                @db.UniqueIdentifier
+  organisation          Organisation?          @relation(fields: [organisationId], references: [id])
+  groups                UserGroups[]
+}
+
+model Group {
+  id                    String                 @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name                  String                 @unique
+  tcpPrefix             String?
+  applicationId         String?                @db.UniqueIdentifier
+  ownedApplications     Application[]          @relation(name:"ApplicationOwner")
+  application           Application?           @relation(fields: [applicationId], references: [id])
+  managersId            String?                @db.UniqueIdentifier
+  managers              Group?                 @relation(name:"GroupManager", fields: [managersId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  managedGroups         Group[]                @relation(name:"GroupManager")
+  users                 UserGroups[]
+}
+
+model Application {
+  id               String               @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  name             String               @unique
+  owner            Group                @relation(name:"ApplicationOwner",fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ownerId          String                @db.UniqueIdentifier
+  groups           Group[]
+}
+
+model UserGroups {
+  userId     String   @db.UniqueIdentifier
+  groupId    String   @db.UniqueIdentifier
+  assignedAt DateTime @default(now())
+  assignedBy String
+  group      Group    @relation(fields: [groupId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@id([groupId, userId])
+}
