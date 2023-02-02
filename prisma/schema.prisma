@@ -5,31 +5,31 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlserver"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                    String                 @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
-  name                  String                 @db.NVarChar(255)
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                 @db.VarChar(255)
   email                 String?
-  username              String                 @unique @db.NVarChar(255)
-  organisationId        String?                @db.UniqueIdentifier
+  username              String                 @unique @db.VarChar(255)
+  organisationId        String?                @db.Uuid
   organisation          Organisation?          @relation(fields: [organisationId], references: [id])
   groups                UserGroups[]
 }
 
 model Organisation {
-  id         String    @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
-  name       String    @unique @db.NVarChar(255)
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String    @unique @db.VarChar(255)
   users      User[]
 }
 
 model Group {
-  id                    String                 @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                  String                 @unique
   tcpPrefix             String?
-  applicationId         String?                @db.UniqueIdentifier
+  applicationId         String?                @db.Uuid
   ownedApplications     ApplicationOwner[]
   application           Application?           @relation(fields: [applicationId], references: [id])
   managedGroups         GroupManager[]         @relation("managedGroups")
@@ -38,15 +38,15 @@ model Group {
 }
 
 model Application {
-  id               String               @id @default(dbgenerated("newid()")) @db.UniqueIdentifier
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name             String               @unique
   owners           ApplicationOwner[]
   groups           Group[]
 }
 
 model UserGroups {
-  userId     String   @db.UniqueIdentifier
-  groupId    String   @db.UniqueIdentifier
+  userId     String   @db.Uuid
+  groupId    String   @db.Uuid
   assignedAt DateTime @default(now())
   assignedBy String
   group      Group    @relation(fields: [groupId], references: [id])
@@ -56,8 +56,8 @@ model UserGroups {
 }
 
 model ApplicationOwner {
-  applicationId String      @db.UniqueIdentifier
-  groupId       String      @db.UniqueIdentifier
+  applicationId String      @db.Uuid
+  groupId       String      @db.Uuid
   assignedAt    DateTime    @default(now())
   assignedBy    String
   application   Application @relation(fields: [applicationId], references: [id], onUpdate: NoAction)
@@ -67,8 +67,8 @@ model ApplicationOwner {
 }
 
 model GroupManager {
-  managerId  String   @db.UniqueIdentifier
-  groupId    String   @db.UniqueIdentifier
+  managerId  String   @db.Uuid
+  groupId    String   @db.Uuid
   assignedAt DateTime @default(now())
   assignedBy String
   group      Group    @relation("managedGroups", fields: [groupId], references: [id], onUpdate: NoAction)
