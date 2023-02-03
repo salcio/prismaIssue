@@ -9,39 +9,91 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AppSetting {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+  createdBy String
+  updatedBy String?
+  key       String    @unique @db.VarChar(500)
+  value     String    @db.VarChar
+  validFrom DateTime  @default(dbgenerated("NOW()"))
+  validTo   DateTime  @default(dbgenerated("NOW() + interval '1 year'"))
+}
+
+model EntityHistory {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime? @updatedAt
+  createdBy         String
+  updatedBy         String?
+  entityId          String    @db.Uuid
+  entityTable       String
+  title             String
+  type              String
+  changeDate        String
+  changeUserId      String    @db.Uuid
+  changedProperties String
+  entity            String
+  changeUser        User      @relation(fields: [changeUserId], references: [id])
+}
+
 model User {
   id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime?              @updatedAt
+  createdBy             String
+  updatedBy             String?
   name                  String                 @db.VarChar(255)
   email                 String?
-  username              String                 @unique @db.VarChar(255)
+  providerId            String                 @unique @db.VarChar(255)
   organisationId        String?                @db.Uuid
+  validFrom             DateTime               @default(dbgenerated("NOW()"))
+  validTo               DateTime               @default(dbgenerated("NOW() + interval '1 year'"))
+  username              String                 @unique @db.VarChar(255)
+  givenName             String?                @db.VarChar(255)
+  surname               String?                @db.VarChar(255)
+  entityHistories       EntityHistory[]
+  profile               Profile?
   organisation          Organisation?          @relation(fields: [organisationId], references: [id])
   groups                UserGroups[]
+  authorisationProfiles AuthorisationProfile[] @relation("AuthorisationProfileToUser")
 }
 
 model Organisation {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime? @updatedAt
+  createdBy  String
+  updatedBy  String?
   name       String    @unique @db.VarChar(255)
+  providerId String?   @unique @db.VarChar(255)
+  validFrom  DateTime  @default(dbgenerated("NOW()"))
+  validTo    DateTime  @default(dbgenerated("NOW() + interval '1 year'"))
   users      User[]
 }
 
 model Group {
   id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime?              @updatedAt
+  createdBy             String
+  updatedBy             String?
   name                  String                 @unique
+  providerId            String                 @unique @db.VarChar(255)
   tcpPrefix             String?
   applicationId         String?                @db.Uuid
+  validFrom             DateTime               @default(dbgenerated("NOW()"))
+  validTo               DateTime               @default(dbgenerated("NOW() + interval '1 year'"))
+  groupCode             String?
+  order                 Int                    @default(100)
+  providerName          String?
   ownedApplications     ApplicationOwner[]
   application           Application?           @relation(fields: [applicationId], references: [id])
-  managedGroups         GroupManager[]         @relation("managedGroups")
-  managers              GroupManager[]         @relation("managers")
+  managedGroups         GroupManager[]         @relation("managers")
+  managers              GroupManager[]         @relation("managedGroups")
   users                 UserGroups[]
-}
-
-model Application {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name             String               @unique
-  owners           ApplicationOwner[]
-  groups           Group[]
+  authorisationProfiles AuthorisationProfile[] @relation("AuthorisationProfileToGroup")
 }
 
 model UserGroups {
@@ -49,10 +101,111 @@ model UserGroups {
   groupId    String   @db.Uuid
   assignedAt DateTime @default(now())
   assignedBy String
+  validFrom  DateTime @default(dbgenerated("NOW()"))
+  validTo    DateTime @default(dbgenerated("NOW() + interval '1 year'"))
   group      Group    @relation(fields: [groupId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
 
   @@id([groupId, userId])
+}
+
+model Profile {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerProfile String
+  bio             String?
+  userId          String    @unique @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime? @updatedAt
+  createdBy       String
+  updatedBy       String?
+  user            User      @relation(fields: [userId], references: [id])
+}
+
+model ScheduledTaskRunLog {
+  id                     String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime?  @updatedAt
+  createdBy              String
+  updatedBy              String?
+  handlerType            String?
+  schedulerType          String?
+  cronTime               String?
+  interval               Int?
+  timeout                Int?
+  dependsOnTimeoutTaskId String?    @db.Uuid
+  scheduledTaskId        String
+  runId                  String
+  correlationId          String?
+  state                  String
+  runStarted             DateTime
+  runFinished            DateTime?
+  detailsJson            String?    @db.VarChar
+  validFrom              DateTime   @default(dbgenerated("NOW()"))
+  validTo                DateTime   @default(dbgenerated("NOW() + interval '1 year'"))
+  logStreamId            String?    @db.Uuid
+  logStream              LogStream? @relation(fields: [logStreamId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  syncLogs               SyncLog[]
+}
+
+model LogStream {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime?             @updatedAt
+  createdBy            String
+  updatedBy            String?
+  entries              String                @db.VarChar
+  scheduledTaskRunLogs ScheduledTaskRunLog[]
+  syncLogs             SyncLog[]
+}
+
+model SyncLog {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime?            @updatedAt
+  createdBy              String
+  updatedBy              String?
+  type                   String
+  target                 String
+  validFrom              DateTime             @default(dbgenerated("NOW()"))
+  validTo                DateTime             @default(dbgenerated("NOW() + interval '1 year'"))
+  actionName             String?
+  scheduledTaskRunLogId  String?              @db.Uuid
+  parentSyncLogId        String?              @db.Uuid
+  state                  String               @default("")
+  finished               DateTime?
+  started                DateTime             @default(now())
+  logStreamId            String?              @db.Uuid
+  deltaLink              String?              @db.VarChar
+  deltaLinkSourcedFromId String?              @db.Uuid
+  deltaLinkUsedAt        DateTime?
+  sourceDeltaLink        String?              @db.VarChar
+  deltaLinkRetiredById   String?              @db.Uuid
+  deltaLinkRetiredBy     SyncLog?             @relation("deltaLinkRetirees", fields: [deltaLinkRetiredById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deltaLinksRetiredByMe  SyncLog[]            @relation("deltaLinkRetirees")
+  deltaLinkSourcedFrom   SyncLog?             @relation("deltaLinkUsers", fields: [deltaLinkSourcedFromId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deltaLinkUsedBy        SyncLog[]            @relation("deltaLinkUsers")
+  logStream              LogStream?           @relation(fields: [logStreamId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parentSyncLog          SyncLog?             @relation("parentChild", fields: [parentSyncLogId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childSyncLogs          SyncLog[]            @relation("parentChild")
+  scheduledTaskRunLog    ScheduledTaskRunLog? @relation(fields: [scheduledTaskRunLogId], references: [id])
+}
+
+model Application {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime?            @updatedAt
+  createdBy        String
+  updatedBy        String?
+  name             String               @unique
+  url              String?
+  tcpPrefix        String?
+  validFrom        DateTime             @default(dbgenerated("NOW()"))
+  validTo          DateTime             @default(dbgenerated("NOW() + interval '1 year'"))
+  order            Int                  @default(100)
+  clients          ApplicationClients[]
+  owners           ApplicationOwner[]
+  groups           Group[]
+  resourceProfiles ResourceProfile[]
 }
 
 model ApplicationOwner {
@@ -60,6 +213,8 @@ model ApplicationOwner {
   groupId       String      @db.Uuid
   assignedAt    DateTime    @default(now())
   assignedBy    String
+  validFrom     DateTime    @default(dbgenerated("NOW()"))
+  validTo       DateTime    @default(dbgenerated("NOW() + interval '1 year'"))
   application   Application @relation(fields: [applicationId], references: [id], onUpdate: NoAction)
   group         Group       @relation(fields: [groupId], references: [id])
 
@@ -71,8 +226,177 @@ model GroupManager {
   groupId    String   @db.Uuid
   assignedAt DateTime @default(now())
   assignedBy String
+  validFrom  DateTime @default(dbgenerated("NOW()"))
+  validTo    DateTime @default(dbgenerated("NOW() + interval '1 year'"))
   group      Group    @relation("managedGroups", fields: [groupId], references: [id], onUpdate: NoAction)
   manager    Group    @relation("managers", fields: [managerId], references: [id], onUpdate: NoAction)
 
   @@id([groupId, managerId])
+}
+
+model Client {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime?              @updatedAt
+  createdBy               String
+  updatedBy               String?
+  name                    String
+  clientId                String                 @unique
+  isTrusted               Boolean
+  clientSecretHash        String
+  clientSecretHint        String
+  clientSecretSalt        String
+  authenticationUrl       String?
+  grantTypes              String?
+  postLogoutRedirectUri   String?
+  responseTypes           String?
+  allowedCorsOrigins      String?
+  tokenEndpointAuthMethod String?
+  applicationType         String?
+  validFrom               DateTime               @default(dbgenerated("NOW()"))
+  validTo                 DateTime               @default(dbgenerated("NOW() + interval '1 year'"))
+  applications            ApplicationClients[]
+  returnUrls              ReturnUrl[]
+  authorisationProfiles   AuthorisationProfile[] @relation("AuthorisationProfileToClient")
+}
+
+model ReturnUrl {
+  clientId String @db.Uuid
+  url      String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  @@unique([clientId, url])
+}
+
+model OAuthProviderModel {
+  id        String    @id
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+  createdBy String
+  updatedBy String?
+  uid       String?
+  grantId   String?
+  userCode  String?
+  kind      String
+  consumed  Int?
+  payload   String    @db.VarChar
+  expiry    DateTime  @default(now())
+}
+
+model ApplicationClients {
+  clientId      String      @db.Uuid
+  applicationId String      @db.Uuid
+  assignedAt    DateTime    @default(now())
+  assignedBy    String
+  application   Application @relation(fields: [applicationId], references: [id])
+  client        Client      @relation(fields: [clientId], references: [id])
+
+  @@id([clientId, applicationId])
+}
+
+model ResourceProfile {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime?              @updatedAt
+  createdBy             String
+  updatedBy             String?
+  name                  String                 @unique
+  applicationId         String                 @db.Uuid
+  authorisationProfiles AuthorisationProfile[]
+  application           Application            @relation(fields: [applicationId], references: [id])
+  resources             Resource[]             @relation("ResourceToResourceProfile")
+}
+
+/// like an AccessRole
+model AuthorisationProfile {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime?       @updatedAt
+  createdBy         String
+  updatedBy         String?
+  name              String          @unique
+  resourceProfileId String          @db.Uuid
+  authorisations    Authorisation[]
+  resourceProfile   ResourceProfile @relation(fields: [resourceProfileId], references: [id], onUpdate: NoAction)
+  clients           Client[]        @relation("AuthorisationProfileToClient")
+  groups            Group[]         @relation("AuthorisationProfileToGroup")
+  users             User[]          @relation("AuthorisationProfileToUser")
+}
+
+model Authorisation {
+  id                                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt                              DateTime              @default(now())
+  updatedAt                              DateTime?             @updatedAt
+  createdBy                              String
+  updatedBy                              String?
+  parentId                               String?               @db.Uuid
+  resourceId                             String                @db.Uuid
+  resourceAttributeValues                String                @db.VarChar
+  parentAttributeValuesPropertyOperators String?
+  authorisationProfileId                 String                @db.Uuid
+  validFrom                              DateTime              @default(dbgenerated("NOW()"))
+  validTo                                DateTime              @default(dbgenerated("NOW() + interval '1 year'"))
+  AuthorisationProfile                   AuthorisationProfile  @relation(fields: [authorisationProfileId], references: [id], onUpdate: NoAction)
+  parent                                 Authorisation?        @relation("subAuthorisation", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subAuthorisations                      Authorisation[]       @relation("subAuthorisation")
+  resource                               Resource              @relation(fields: [resourceId], references: [id], onUpdate: NoAction)
+  actions                                AuthorisationAction[] @relation("AuthorisationToAuthorisationAction")
+}
+
+model AuthorisationAction {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime?       @updatedAt
+  createdBy      String
+  updatedBy      String?
+  name           String          @unique
+  authorisations Authorisation[] @relation("AuthorisationToAuthorisationAction")
+}
+
+model Resource {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime?           @updatedAt
+  createdBy        String
+  updatedBy        String?
+  key              String              @unique
+  label            String
+  authorisations   Authorisation[]
+  parents          SubResource[]       @relation("parents")
+  subResources     SubResource[]       @relation("subResources")
+  attributes       ResourceAttribute[] @relation("ResourceToResourceAttribute")
+  resourceProfiles ResourceProfile[]   @relation("ResourceToResourceProfile")
+}
+
+model SubResource {
+  parentId                    String   @db.Uuid
+  childId                     String   @db.Uuid
+  childNavigationPropertyName String
+  child                       Resource @relation("parents", fields: [childId], references: [id], onUpdate: NoAction)
+  parent                      Resource @relation("subResources", fields: [parentId], references: [id])
+
+  @@id([parentId, childId])
+}
+
+model ResourceAttribute {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime   @default(now())
+  updatedAt DateTime?  @updatedAt
+  createdBy String
+  updatedBy String?
+  name      String
+  type      String
+  scriptId  String?    @db.Uuid
+  script    Script?    @relation(fields: [scriptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resources Resource[] @relation("ResourceToResourceAttribute")
+}
+
+model Script {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime?           @updatedAt
+  createdBy          String
+  updatedBy          String?
+  text               String              @db.VarChar
+  resourceAttributes ResourceAttribute[]
 }
